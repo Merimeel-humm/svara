@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="et">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Svara</title>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<style>
+:root{--bg:#faf8f4;--ink:#1f1b16;--muted:#6b6258;--line:#e3ddd3;--accent:#a3361f;--btn:#ffffff}
+@media (prefers-color-scheme: dark){:root{--bg:#1f1d1b;--ink:#eee8df;--muted:#a59c90;--line:#3a352f;--accent:#e07a5f;--btn:#2a2724}}
+*{box-sizing:border-box}
+body{margin:0;padding:12px;background:var(--bg);color:var(--ink);font-family:"Segoe UI","Noto Sans",system-ui,sans-serif;font-size:13px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:16px 0 6px}
+h2:first-child{margin-top:0}
+button{font:inherit;border:1px solid var(--line);background:var(--btn);color:var(--ink);border-radius:6px;padding:6px 8px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+.full{width:100%;margin-bottom:6px;text-align:left}
+.full.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.grid button{display:flex;flex-direction:column;align-items:center;line-height:1.15}
+.grid b{font-size:22px;font-weight:400;color:var(--accent);font-family:"Noto Sans","Segoe UI",sans-serif}
+.grid small{font-size:10px;color:var(--muted)}
+.letters{display:flex;flex-wrap:wrap;gap:4px}
+.letters button{min-width:30px;padding:3px 5px;font-size:16px}
+p.help{color:var(--muted);font-size:12px;line-height:1.45;margin:6px 0}
+#msg{min-height:18px;margin-top:10px;font-size:12px;color:var(--accent)}
+select{font:inherit;width:100%;padding:4px;margin-bottom:6px;border:1px solid var(--line);border-radius:6px;background:var(--btn);color:var(--ink)}
+</style>
+</head>
+<body>
+<h2>Teisenda valitud tekst</h2>
+<select id="scheme">
+  <option value="auto">Sisend: automaatne</option>
+  <option value="deva">Sisend: Devanāgarī</option>
+  <option value="hk">Sisend: Harvard-Kyoto</option>
+</select>
+<button class="full primary" id="toIast">Valitud tekst → IAST</button>
+<button class="full" id="toDeva">Valitud IAST → Devanāgarī</button>
+<button class="full" id="addDeva">Lisa Devanāgarī uue lõiguna alla</button>
+
+<h2>Svarad</h2>
+<div class="grid" id="svara">
+  <button data-mark="&#x0331;"><b>a&#x0331;</b><small>anudātta</small></button>
+  <button data-mark="&#x030D;"><b>a&#x030D;</b><small>svarita</small></button>
+  <button data-mark="&#x0301;"><b>a&#x0301;</b><small>udātta</small></button>
+  <button data-mark="&#x030E;"><b>a&#x030E;</b><small>dīrgha svarita</small></button>
+  <button data-mark="&#x0300;"><b>a&#x0300;</b><small>svarita (grave)</small></button>
+  <button data-mark=""><b>a</b><small>eemalda</small></button>
+</div>
+<p class="help">Pane kursor silbi taha ja vajuta nuppu. Märk läheb kursorist vasakule jäävale lähimale vokaalile samas sõnas. Kui oled teksti valinud, läheb märk valiku viimasele vokaalile. Uus vajutus samale nupule eemaldab märgi.</p>
+
+<h2>Tähed</h2>
+<div class="letters" id="letters"></div>
+
+<div id="msg"></div>
+
+<script src="svara-core.js"></script>
+<script>
+// ---------- abifunktsioonid ----------
+const isMark=c=>/\p{M}/u.test(c);
+function isVowelCluster(cl){
+  const d=cl.normalize('NFD'); const b=d[0].toLowerCase();
+  return 'aeiou'.includes(b) || (/[rl]/.test(b) && d.includes('̣'));
+}
+function clusterEnd(v,k){let e=k+1; while(e<v.length && isMark(v[e])) e++; return e;}
+function lastVowel(v){
+  for(let k=v.length-1;k>=0;k--){
+    if(isMark(v[k])) continue;
+    const e=clusterEnd(v,k);
+    if(isVowelCluster(v.slice(k,e))) return [k,e];
+  }
+  return null;
+}
+function stripAcc(cl){
+  const d=cl.normalize('NFD'); let base='',found='';
+  for(const ch of d){ if(ACC_MARKS.includes(ch)) found+=ch; else base+=ch; }
+  return {base:base.normalize('NFC'),found};
+}
+// Lisab/vahetab/eemaldab märgi teksti viimasel vokaalil. Tagastab uue teksti või null.
+function accentLast(t,mark){
+  const r=lastVowel(t); if(!r) return null;
+  const [k,e]=r; const {base,found}=stripAcc(t.slice(k,e));
+  const nc=(mark && found!==mark)?base+mark:base;
+  return t.slice(0,k)+nc+t.slice(e);
+}
+function detect(s){
+  const m=document.getElementById('scheme').value; if(m!=='auto') return m;
+  if(/[ऀ-ॿ꣠-ꣿ᳐-᳿]/.test(s)) return 'deva';
+  if(/[āīūṛṝḷḹṅñṭḍṇśṣṃḥ]/i.test(s)) return 'iast';
+  if(/[AIURMHGJTDNLzS]/.test(s.replace(/(^|[\s|.])[A-Z]/g,'$1'))) return 'hk';
+  return 'iast';
+}
+function toIast(s){const m=detect(s); return m==='deva'?devaToIast(s):m==='hk'?hkToIast(s):s;}
+function msg(t){const el=document.getElementById('msg'); el.textContent=t; clearTimeout(msg.t); msg.t=setTimeout(()=>el.textContent='',3000);}
+function fail(e){console.error(e); msg('Viga: '+(e && e.message ? e.message : e));}
+
+// ---------- Wordi toimingud ----------
+// Teisendab valiku lõikude kaupa, et lõiguvorming jääks alles.
+async function convertSelection(fn){
+  await Word.run(async ctx=>{
+    const sel=ctx.document.getSelection(); sel.load('isEmpty');
+    const paras=sel.paragraphs; paras.load('items'); await ctx.sync();
+    if(sel.isEmpty){msg('Vali Wordis kõigepealt tekst.');return;}
+    const parts=paras.items.map(p=>p.getRange('Whole').intersectWithOrNullObject(sel));
+    parts.forEach(r=>r.load('text,isNullObject')); await ctx.sync();
+    let n=0;
+    for(const r of parts){
+      if(r.isNullObject || !r.text) continue;
+      const nt=fn(r.text.replace(/\r$/,''));
+      if(nt!==r.text.replace(/\r$/,'')){ r.insertText(nt,'Replace'); n++; }
+    }
+    await ctx.sync();
+    msg(n?'Valmis.':'Midagi ei muutunud.');
+  }).catch(fail);
+}
+async function addDevaBelow(){
+  await Word.run(async ctx=>{
+    const sel=ctx.document.getSelection(); sel.load('text,isEmpty'); await ctx.sync();
+    if(sel.isEmpty){msg('Vali Wordis kõigepealt IAST-tekst.');return;}
+    const paras=sel.paragraphs; paras.load('items'); await ctx.sync();
+    const last=paras.items[paras.items.length-1];
+    const lines=sel.text.split(/\r/).filter(x=>x.trim()).map(iastToDeva);
+    let after=last;
+    for(const l of lines){ after=after.insertParagraph(l,'After'); }
+    await ctx.sync(); msg('Devanāgarī lisatud.');
+  }).catch(fail);
+}
+function escSearch(s){return s.replace(/\^/g,'^^');}
+async function applyAccent(mark){
+  await Word.run(async ctx=>{
+    const sel=ctx.document.getSelection(); sel.load('text,isEmpty'); await ctx.sync();
+    if(!sel.isEmpty){
+      const nt=accentLast(sel.text,mark);
+      if(nt===null){msg('Valikus pole vokaali.');return;}
+      sel.insertText(nt,'Replace').select('End'); await ctx.sync(); return;
+    }
+    // Kursor: võta sõna algusest kursorini
+    const para=sel.paragraphs.getFirst();
+    const before=para.getRange('Start').expandTo(sel.getRange('Start'));
+    before.load('text'); await ctx.sync();
+    const t=before.text;
+    let w=t.length; while(w>0 && !/[\s|।॥,.;:!?()"\u000b]/.test(t[w-1])) w--;
+    const tail=t.slice(w);
+    if(!tail){msg('Pane kursor silbi taha.');return;}
+    const nt=accentLast(tail,mark);
+    if(nt===null){msg('Kursorist vasakul pole vokaali.');return;}
+    if(tail.length>200){msg('Sõna on liiga pikk.');return;}
+    const res=before.search(escSearch(tail),{matchCase:true,matchWildcards:false});
+    res.load('items'); await ctx.sync();
+    if(!res.items.length){
+      // varuvariant: lisa märk otse kursori kohale
+      if(mark){ sel.insertText(mark,'Replace').select('End'); await ctx.sync(); msg('Märk lisatud kursori kohale.'); }
+      else msg('Ei leidnud sõna üles.');
+      return;
+    }
+    const target=res.items[res.items.length-1];
+    target.insertText(nt,'Replace').select('End');
+    await ctx.sync();
+  }).catch(fail);
+}
+async function insertLetter(l){
+  await Word.run(async ctx=>{
+    ctx.document.getSelection().insertText(l,'Replace').select('End'); await ctx.sync();
+  }).catch(fail);
+}
+
+// ---------- UI ----------
+const LETTERS=['ā','ī','ū','ṛ','ṝ','ḷ','ḹ','ṅ','ñ','ṭ','ḍ','ṇ','ś','ṣ','ṃ','ṁ','ḥ','m̐',"'",'|','||'];
+const lw=document.getElementById('letters');
+LETTERS.forEach(l=>{const b=document.createElement('button');b.textContent=l;b.onclick=()=>insertLetter(l);lw.appendChild(b);});
+document.getElementById('svara').addEventListener('click',ev=>{const b=ev.target.closest('button'); if(b) applyAccent(b.dataset.mark);});
+document.getElementById('toIast').onclick=()=>convertSelection(toIast);
+document.getElementById('toDeva').onclick=()=>convertSelection(iastToDeva);
+document.getElementById('addDeva').onclick=addDevaBelow;
+
+Office.onReady(info=>{
+  if(info.host!==Office.HostType.Word) msg('See paneel töötab ainult Wordis.');
+});
+</script>
+</body>
+</html>
