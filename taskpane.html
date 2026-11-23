@@ -47,7 +47,7 @@ select{font:inherit;width:100%;padding:4px;margin-bottom:6px;border:1px solid va
   <button data-mark="&#x0300;"><b>a&#x0300;</b><small>svarita (grave)</small></button>
   <button data-mark=""><b>a</b><small>eemalda</small></button>
 </div>
-<p class="help">Pane kursor silbi taha ja vajuta nuppu. Märk läheb kursorist vasakule jäävale lähimale vokaalile samas sõnas. Kui oled teksti valinud, läheb märk valiku viimasele vokaalile. Uus vajutus samale nupule eemaldab märgi.</p>
+<p class="help">Töötab nii IAST- kui Devanāgarī tekstis (॒ ॑ ᳚). Pane kursor silbi taha ja vajuta nuppu. Märk läheb kursorist vasakule jäävale lähimale vokaalile samas sõnas. Kui oled teksti valinud, läheb märk valiku viimasele vokaalile. Uus vajutus samale nupule eemaldab märgi.</p>
 
 <h2>Tähed</h2>
 <div class="letters" id="letters"></div>
@@ -82,6 +82,12 @@ function accentLast(t,mark){
   const [k,e]=r; const {base,found}=stripAcc(t.slice(k,e));
   const nc=(mark && found!==mark)?base+mark:base;
   return t.slice(0,k)+nc+t.slice(e);
+}
+// Valib skripti järgi: Devanāgarī või IAST. Tagastab {text} või {error}.
+function accentAny(t,mark){
+  if(hasDeva(t)) return devaAccentLast(t,mark);
+  const nt=accentLast(t,mark);
+  return nt===null?{error:'Vokaali ei leitud.'}:{text:nt};
 }
 function detect(s){
   const m=document.getElementById('scheme').value; if(m!=='auto') return m;
@@ -130,9 +136,9 @@ async function applyAccent(mark){
   await Word.run(async ctx=>{
     const sel=ctx.document.getSelection(); sel.load('text,isEmpty'); await ctx.sync();
     if(!sel.isEmpty){
-      const nt=accentLast(sel.text,mark);
-      if(nt===null){msg('Valikus pole vokaali.');return;}
-      sel.insertText(nt,'Replace').select('End'); await ctx.sync(); return;
+      const r=accentAny(sel.text,mark);
+      if(r.error){msg(r.error);return;}
+      sel.insertText(r.text,'Replace').select('End'); await ctx.sync(); return;
     }
     // Kursor: võta sõna algusest kursorini
     const para=sel.paragraphs.getFirst();
@@ -142,19 +148,20 @@ async function applyAccent(mark){
     let w=t.length; while(w>0 && !/[\s|।॥,.;:!?()"\u000b]/.test(t[w-1])) w--;
     const tail=t.slice(w);
     if(!tail){msg('Pane kursor silbi taha.');return;}
-    const nt=accentLast(tail,mark);
-    if(nt===null){msg('Kursorist vasakul pole vokaali.');return;}
+    const r=accentAny(tail,mark);
+    if(r.error){msg(r.error);return;}
     if(tail.length>200){msg('Sõna on liiga pikk.');return;}
     const res=before.search(escSearch(tail),{matchCase:true,matchWildcards:false});
     res.load('items'); await ctx.sync();
     if(!res.items.length){
       // varuvariant: lisa märk otse kursori kohale
-      if(mark){ sel.insertText(mark,'Replace').select('End'); await ctx.sync(); msg('Märk lisatud kursori kohale.'); }
+      const dm=hasDeva(tail)?MARK_TO_DEVA[mark]:mark;
+      if(dm){ sel.insertText(dm,'Replace').select('End'); await ctx.sync(); msg('Märk lisatud kursori kohale.'); }
       else msg('Ei leidnud sõna üles.');
       return;
     }
     const target=res.items[res.items.length-1];
-    target.insertText(nt,'Replace').select('End');
+    target.insertText(r.text,'Replace').select('End');
     await ctx.sync();
   }).catch(fail);
 }

@@ -92,3 +92,35 @@ function iastToDeva(text){
   if(prevCons) out+=VIRAMA;
   return out;
 }
+
+// ---------- Svara lisamine Devanāgarī tekstile ----------
+// IAST-märk -> Devanāgarī märk. null = Devanāgarīs ei märgita (udātta).
+const MARK_TO_DEVA={'̱':'॒','̍':'॑','̀':'॑','̎':'᳚','́':null,'':''};
+const DEVA_ACC='॒॑᳚᳛';
+const hasDeva=s=>/[ऀ-ॿ꣠-ꣿ᳐-᳿]/.test(s);
+function isDevaCons(c){return D_CONS[c]!==undefined || (c>='क़' && c<='य़') || c==='ऩ' || c==='ऱ' || c==='ऴ';}
+// Lisab/vahetab/eemaldab svara viimasel silbil. Tagastab {text} või {error}.
+function devaAccentLast(t,mark){
+  const dm=MARK_TO_DEVA[mark];
+  if(dm===null) return {error:'Udāttat Devanāgarīs ei märgita (Ṛgveda tava).'};
+  if(dm===undefined) return {error:'Tundmatu märk.'};
+  for(let k=t.length-1;k>=0;k--){
+    const c=t[k]; let pos=-1;
+    if(D_MATRA[c]!==undefined || D_VOW[c]!==undefined || c==='ॐ') pos=k+1;
+    else if(isDevaCons(c)){
+      let j=k+1; if(t[j]===NUKTA) j++;
+      if(t[j]===VIRAMA || D_MATRA[t[j]]!==undefined) continue;
+      pos=j;
+    }
+    if(pos<0) continue;
+    // olemasolevad svarad selle silbi lõpus (ka pärast anusvārat/candrabindut)
+    let e=pos, found='', rest='';
+    while(e<t.length && (DEVA_ACC.includes(t[e]) || t[e]==='ं' || t[e]==='ँ')){
+      if(DEVA_ACC.includes(t[e])) found+=t[e]; else rest+=t[e];
+      e++;
+    }
+    const nm=(dm && found!==dm)?dm:'';
+    return {text:t.slice(0,pos)+nm+rest+t.slice(e)};
+  }
+  return {error:'Silpi ei leitud.'};
+}
