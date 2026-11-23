@@ -25,9 +25,26 @@ button:hover{border-color:var(--accent)}
 p.help{color:var(--muted);font-size:12px;line-height:1.45;margin:6px 0}
 #msg{min-height:18px;margin-top:10px;font-size:12px;color:var(--accent)}
 select{font:inherit;width:100%;padding:4px;margin-bottom:6px;border:1px solid var(--line);border-radius:6px;background:var(--btn);color:var(--ink)}
+.tabs{display:flex;gap:4px;position:sticky;top:0;background:var(--bg);padding:0 0 8px;z-index:2}
+.tabs button{flex:1;padding:6px 4px;font-size:12px}
+.tabs button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tab{display:none}.tab.on{display:block}
+.kb-title{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:12px 0 5px}
+.kb-row{display:flex;flex-wrap:wrap;gap:4px}
+.kb-key{min-width:38px;padding:2px 3px 3px;display:flex;flex-direction:column;align-items:center;line-height:1.1}
+.kb-ch{font-family:"Siddhanta","Chandas","Noto Sans Devanagari","Kohinoor Devanagari",sans-serif;font-size:21px;line-height:1.5;color:var(--accent)}
+.kb-key small{font-size:9.5px;color:var(--muted);min-height:11px}
+#msg{position:sticky;top:38px;z-index:1}
 </style>
 </head>
 <body>
+<div class="tabs" id="tabs">
+  <button data-tab="t-main" class="on">Svarad · IAST</button>
+  <button data-tab="t-deva">Devanāgarī</button>
+  <button data-tab="t-vedic">Vedic</button>
+</div>
+<div id="msg"></div>
+<div class="tab on" id="t-main">
 <h2>Teisenda valitud tekst</h2>
 <select id="scheme">
   <option value="auto">Sisend: automaatne</option>
@@ -51,11 +68,12 @@ select{font:inherit;width:100%;padding:4px;margin-bottom:6px;border:1px solid va
 
 <h2>Tähed</h2>
 <div class="letters" id="letters"></div>
+</div>
+<div class="tab" id="t-deva"><p class="help">Klõps lisab märgi kursori kohale. Kaashääliku ja järgmise kaashääliku vahele pane virāma ्.</p><div id="kb-deva"></div></div>
+<div class="tab" id="t-vedic"><p class="help">◌ näitab märki, mis kinnitub eelmise tähe külge. Pane kursor tähe taha ja klõpsa. Hoia hiirt nupul, et näha märgi nime.</p><div id="kb-vedic"></div></div>
 
-<div id="msg"></div>
-
-<p class="help" style="margin-top:14px;opacity:.7">Versioon 3 · Devanāgarī fondiks sobib Siddhanta või Chandas</p>
-<script src="svara-core.js?v=3"></script>
+<p class="help" style="margin-top:14px;opacity:.7">Versioon 4 · Devanāgarī fondiks sobib Siddhanta või Chandas</p>
+<script src="svara-core.js?v=4"></script>
 <script>
 // ---------- abifunktsioonid ----------
 const isMark=c=>/\p{M}/u.test(c);
@@ -180,6 +198,14 @@ document.getElementById('svara').addEventListener('click',ev=>{const b=ev.target
 document.getElementById('toIast').onclick=()=>convertSelection(toIast);
 document.getElementById('toDeva').onclick=()=>convertSelection(iastToDeva);
 document.getElementById('addDeva').onclick=addDevaBelow;
+
+buildKeyboard(document.getElementById('kb-deva'),'deva',insertLetter);
+buildKeyboard(document.getElementById('kb-vedic'),'vedic',insertLetter);
+document.getElementById('tabs').addEventListener('click',ev=>{
+  const b=ev.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.id===b.dataset.tab));
+});
 
 Office.onReady(info=>{
   if(info.host!==Office.HostType.Word) msg('See paneel töötab ainult Wordis.');
