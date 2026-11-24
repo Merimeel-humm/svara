@@ -90,8 +90,8 @@ select{font:inherit;width:100%;padding:4px;margin-bottom:6px;border:1px solid va
 <div class="tab" id="t-deva"><p class="help">Klõps lisab märgi kursori kohale. Kaashääliku ja järgmise kaashääliku vahele pane virāma ्.</p><div id="kb-deva"></div></div>
 <div class="tab" id="t-vedic"><p class="help">◌ näitab märki, mis kinnitub eelmise tähe külge. Pane kursor tähe taha ja klõpsa. Hoia hiirt nupul, et näha märgi nime.</p><div id="kb-vedic"></div></div>
 
-<p class="help" style="margin-top:14px;opacity:.7">Versioon 6 · Devanāgarī fondiks sobib Siddhanta või Chandas</p>
-<script src="svara-core.js?v=6"></script>
+<p class="help" style="margin-top:14px;opacity:.7">Versioon 7 · Devanāgarī fondiks sobib Siddhanta või Chandas</p>
+<script src="svara-core.js?v=7"></script>
 <script>
 // ---------- abifunktsioonid ----------
 const isMark=c=>/\p{M}/u.test(c);
@@ -188,32 +188,60 @@ async function baseColor(ctx,range,text){
   return '#000000';
 }
 // Kirjutab teksti range'i asemele nii, et iga svara-märk saab oma värvi.
-async function writeColored(ctx,range,text,base){
+function segsOf(text,base){
   const segs=[];
   for(const ch of text){
     const c=markColor(ch)||base;
     if(segs.length && segs[segs.length-1].c===c) segs[segs.length-1].t+=ch; else segs.push({t:ch,c});
   }
+  return segs;
+}
+function writeSegs(range,segs){
   let r=range.insertText(segs[0].t,'Replace'); r.font.color=segs[0].c;
   for(let i=1;i<segs.length;i++){ r=r.insertText(segs[i].t,'After'); r.font.color=segs[i].c; }
-  r.select('End'); await ctx.sync();
+  return r;
 }
-// Värvib olemasolevad märgid antud range'ides.
-async function colorMarks(ctx,ranges,resetDefault){
-  const jobs=[];
-  for(const rg of ranges) for(const ch of colorKeys()){
-    const c=markColor(ch); if(!c && !resetDefault) continue;
-    const res=rg.search(ch,{matchCase:true}); res.load('items'); jobs.push([c||'#000000',res]);
+async function writeColored(ctx,range,text,base){
+  writeSegs(range,segsOf(text,base)).select('End'); await ctx.sync();
+}
+const okHex=c=>!!c && /^#[0-9a-f]{6}$/i.test(c) && !isSvaraColor(c);
+// Värvib olemasolevad märgid: kirjutab üle ainult need sõnad, kus on märke.
+// (Word ei leia otsinguga üksikut kombineeruvat märki, seega töötame sõnade kaupa.)
+async function colorMarks(ctx,ranges){
+  const keys=colorKeys(); const has=t=>[...t].some(ch=>keys.includes(ch));
+  // 1) lõigud
+  const pl=ranges.map(rg=>{const p=rg.paragraphs; p.load('items/text'); return [rg,p];});
+  await ctx.sync();
+  const parts=[];
+  for(const [rg,p] of pl) for(const it of p.items){
+    if(!has(it.text)) continue;
+    const x=it.getRange('Content').intersectWithOrNullObject(rg); x.load('isNullObject'); parts.push(x);
   }
   await ctx.sync();
-  let n=0; for(const [c,res] of jobs) for(const it of res.items){ it.font.color=c; n++; }
-  await ctx.sync(); return n;
+  // 2) sõnad
+  const wl=parts.filter(x=>!x.isNullObject).map(x=>{const w=x.getTextRanges([' ','\t'],true); w.load('items/text,items/font/color'); return w;});
+  await ctx.sync();
+  const words=[];
+  for(const w of wl) for(const it of w.items){ if(it.text && !/[\r\n\v\u000b]/.test(it.text) && has(it.text)) words.push(it); }
+  if(!words.length) return 0;
+  // 3) põhivärv: kui sõna värv on segane, vaata esimest tähte
+  const fb=[];
+  for(const w of words){
+    if(okHex(w.font.color)){ w._base=w.font.color; continue; }
+    const first=[...w.text].find(x=>!isMark(x) && x.trim() && !keys.includes(x));
+    if(first){ const r=w.search(escSearch(first),{matchCase:true}); r.load('items/font/color'); fb.push([w,r]); }
+  }
+  if(fb.length) await ctx.sync();
+  for(const [w,r] of fb){ const c=r.items.length && r.items[0].font.color; w._base=okHex(c)?c:null; }
+  // 4) kirjuta üle
+  for(const w of words) writeSegs(w,segsOf(w.text,w._base||'#000000'));
+  await ctx.sync(); return words.length;
 }
 async function recolor(){
   await Word.run(async ctx=>{
     const sel=ctx.document.getSelection(); sel.load('isEmpty'); await ctx.sync();
-    const n=await colorMarks(ctx,[sel.isEmpty?ctx.document.body:sel],true);
-    msg(n?('Värvitud '+n+' märki'+(sel.isEmpty?' kogu dokumendis.':' valikus.')):'Svara-märke ei leitud.');
+    const n=await colorMarks(ctx,[sel.isEmpty?ctx.document.body.getRange('Whole'):sel]);
+    msg(n?('Värvitud '+n+' sõna märgid'+(sel.isEmpty?' kogu dokumendis.':' valikus.')):'Svara-märke ei leitud.');
   }).catch(fail);
 }
 
@@ -233,7 +261,7 @@ async function convertSelection(fn){
       if(nt!==r.text.replace(/\r$/,'')){ done.push(r.insertText(nt,'Replace')); n++; }
     }
     await ctx.sync();
-    if(n && anyColor()) await colorMarks(ctx,done,false);
+    if(n && anyColor()) await colorMarks(ctx,done);
     msg(n?'Valmis.':'Midagi ei muutunud.');
   }).catch(fail);
 }
@@ -248,7 +276,7 @@ async function addDevaBelow(){
     const done=[];
     for(const l of lines){ after=after.insertParagraph(l,'After'); done.push(after); }
     await ctx.sync();
-    if(anyColor()) await colorMarks(ctx,done,false);
+    if(anyColor()) await colorMarks(ctx,done.map(p=>p.getRange('Whole')));
     msg('Devanāgarī lisatud.');
   }).catch(fail);
 }
