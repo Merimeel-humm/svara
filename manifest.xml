@@ -5,14 +5,14 @@
            xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
            xsi:type="TaskPaneApp">
   <Id>d8ab78b2-ce36-4542-8cee-07f9b83f0735</Id>
-  <Version>1.0.8.0</Version>
+  <Version>1.0.9.0</Version>
   <ProviderName>Svara-redaktor</ProviderName>
   <DefaultLocale>et-EE</DefaultLocale>
   <DisplayName DefaultValue="Svara-redaktor"/>
   <Description DefaultValue="Sanskriti tekst Devanāgarīst IAST-iks ja Vedic svarade lisamine."/>
   <IconUrl DefaultValue="https://merimeel-humm.github.io/svara/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://merimeel-humm.github.io/svara/icon-80.png"/>
-  <SupportUrl DefaultValue="https://merimeel-humm.github.io/svara/taskpane.html?v=8"/>
+  <SupportUrl DefaultValue="https://merimeel-humm.github.io/svara/taskpane.html?v=9"/>
   <Hosts>
     <Host Name="Document"/>
   </Hosts>
@@ -22,7 +22,7 @@
     </Sets>
   </Requirements>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://merimeel-humm.github.io/svara/taskpane.html?v=8"/>
+    <SourceLocation DefaultValue="https://merimeel-humm.github.io/svara/taskpane.html?v=9"/>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
@@ -68,7 +68,7 @@
         <bt:Image id="Icon.80" DefaultValue="https://merimeel-humm.github.io/svara/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://merimeel-humm.github.io/svara/taskpane.html?v=8"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://merimeel-humm.github.io/svara/taskpane.html?v=9"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="Group.Label" DefaultValue="Sanskrit"/>

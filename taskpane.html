@@ -35,6 +35,12 @@ select{font:inherit;width:100%;padding:4px;margin-bottom:6px;border:1px solid va
 .kb-ch{font-family:"Siddhanta","Chandas","Noto Sans Devanagari","Kohinoor Devanagari",sans-serif;font-size:21px;line-height:1.5;color:var(--accent)}
 .kb-key small{font-size:9.5px;color:var(--muted);min-height:11px}
 #msg{position:sticky;top:38px;z-index:1}
+.crow{display:flex;align-items:center;gap:4px;margin-bottom:5px}
+.crow .cl{flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crow .cl b{font-weight:400;font-size:16px;margin-right:4px;font-family:"Noto Sans","Segoe UI",sans-serif}
+.sw{width:18px;height:18px;padding:0;border-radius:50%;border:1px solid var(--line);flex:none}
+.sw.on{outline:2px solid var(--accent);outline-offset:1px}
+.crow input[type=color]{width:22px;height:20px;padding:0;border:1px solid var(--line);border-radius:4px;background:none;flex:none;cursor:pointer}
 </style>
 </head>
 <body>
@@ -66,14 +72,19 @@ select{font:inherit;width:100%;padding:4px;margin-bottom:6px;border:1px solid va
 </div>
 <p class="help">Töötab nii IAST- kui Devanāgarī tekstis (॒ ॑ ᳚). Pane kursor silbi taha ja vajuta nuppu. Märk läheb kursorist vasakule jäävale lähimale vokaalile samas sõnas. Kui oled teksti valinud, läheb märk valiku viimasele vokaalile. Uus vajutus samale nupule eemaldab märgi.</p>
 
+<h2>Svarade värvid · IAST · selles dokumendis</h2>
+<div id="colors"></div>
+<button class="full" id="recolor">Värvi olemasolevad svarad uuesti</button>
+<p class="help">Ainult IAST-tekstis. Vaikimisi on märgid musta värvi. Värviline märk saab teise fondi (Arial või Times New Roman), sest muidu Word värvi ei näita. Värv salvestub koos dokumendiga. „Värvi uuesti“ värvib juba olemas olevad märgid: valitud tekstis või kogu dokumendis. Devanāgarī märke värvida ei saa.</p>
+
 <h2>Tähed</h2>
 <div class="letters" id="letters"></div>
 </div>
 <div class="tab" id="t-deva"><p class="help">Klõps lisab märgi kursori kohale. Kaashääliku ja järgmise kaashääliku vahele pane virāma ्.</p><div id="kb-deva"></div></div>
 <div class="tab" id="t-vedic"><p class="help">◌ näitab märki, mis kinnitub eelmise tähe külge. Pane kursor tähe taha ja klõpsa. Hoia hiirt nupul, et näha märgi nime.</p><div id="kb-vedic"></div></div>
 
-<p class="help" style="margin-top:14px;opacity:.7">Versioon 8 · Devanāgarī fondiks sobib Siddhanta või Chandas</p>
-<script src="svara-core.js?v=8"></script>
+<p class="help" style="margin-top:14px;opacity:.7">Versioon 9 · Devanāgarī fondiks sobib Siddhanta või Chandas</p>
+<script src="svara-core.js?v=9"></script>
 <script>
 // ---------- abifunktsioonid ----------
 const isMark=c=>/\p{M}/u.test(c);
@@ -119,6 +130,109 @@ function toIast(s){const m=detect(s); return m==='deva'?devaToIast(s):m==='hk'?h
 function msg(t){const el=document.getElementById('msg'); el.textContent=t; clearTimeout(msg.t); msg.t=setTimeout(()=>el.textContent='',3000);}
 function fail(e){console.error(e); msg('Viga: '+(e && e.message ? e.message : e));}
 
+// ---------- värvid ----------
+const TYPES=[['anudatta','anudātta','a\u0331'],['svarita','svarita','a\u030D'],['udatta','udātta','a\u0301'],['dirgha','dīrgha svarita','a\u030E'],['grave','svarita (grave)','a\u0300']];
+const MARK_TYPE={'\u0331':'anudatta','\u030D':'svarita','\u0301':'udatta','\u030E':'dirgha','\u0300':'grave'};
+const BTN_TYPE={'\u0331':'anudatta','\u030D':'svarita','\u0301':'udatta','\u030E':'dirgha','\u0300':'grave'};
+const PALETTE=[['','must'],['#c00000','punane'],['#0a58ca','sinine'],['#1e7d32','roheline'],['#d9730d','oranž'],['#7b2d9e','lilla']];
+let colors={};
+const settings=()=>(window.Office && Office.context && Office.context.document && Office.context.document.settings)||null;
+function loadColors(){const s=settings(); colors=(s && s.get('svaraColors'))||{};}
+function saveColors(){const s=settings(); if(!s) return; s.set('svaraColors',colors); s.saveAsync(()=>{});}
+const typeColor=t=>colors[t]||'';
+const markColor=ch=>MARK_TYPE[ch]?typeColor(MARK_TYPE[ch]):'';
+const anyColor=()=>TYPES.some(([t])=>colors[t]);
+const isSvaraColor=c=>!!c && TYPES.some(([t])=>colors[t] && colors[t].toLowerCase()===c.toLowerCase());
+function renderColors(){
+  const box=document.getElementById('colors'); box.innerHTML='';
+  for(const [t,name,sample] of TYPES){
+    const row=document.createElement('div'); row.className='crow';
+    const lab=document.createElement('span'); lab.className='cl';
+    const b=document.createElement('b'); b.textContent=sample; b.style.color=typeColor(t)||'inherit';
+    lab.append(b,name); row.appendChild(lab);
+    for(const [c,cn] of PALETTE){
+      const s=document.createElement('button'); s.className='sw'+(typeColor(t)===c?' on':''); s.title=cn;
+      s.style.background=c||'#000'; s.onclick=()=>setColor(t,c); row.appendChild(s);
+    }
+    const inp=document.createElement('input'); inp.type='color'; inp.title='muu värv'; inp.value=typeColor(t)||'#000000';
+    inp.onchange=()=>setColor(t,inp.value.toLowerCase()==='#000000'?'':inp.value); row.appendChild(inp);
+    box.appendChild(row);
+  }
+  document.querySelectorAll('#svara button').forEach(btn=>{
+    const t=BTN_TYPE[btn.dataset.mark]; btn.querySelector('b').style.color=(t&&typeColor(t))||'';
+  });
+}
+function setColor(t,c){ if(c) colors[t]=c; else delete colors[t]; saveColors(); renderColors();
+  msg('Uued märgid tulevad selle värviga. Vanade jaoks vajuta „Värvi uuesti“.'); }
+const okHex=c=>!!c && /^#[0-9a-f]{6}$/i.test(c) && !isSvaraColor(c);
+const markFont=f=>/^arial$/i.test(f||'')?'Times New Roman':'Arial';
+// Teksti põhivärv ja põhifont (svara-märkide väliselt).
+async function baseOf(ctx,range,text){
+  range.load('font/color,font/name'); await ctx.sync();
+  let c=range.font.color, f=range.font.name;
+  if(!okHex(c) || !f){
+    const first=[...text].find(x=>!isMark(x) && x.trim());
+    if(first){
+      const res=range.search(escSearch(first),{matchCase:true}); res.load('items/font/color,items/font/name'); await ctx.sync();
+      if(res.items.length){ if(!okHex(c)) c=res.items[0].font.color; if(!f) f=res.items[0].font.name; }
+    }
+  }
+  return {c:okHex(c)?c:'#000000', f:f||'Times New Roman'};
+}
+function segsOf(text,base){
+  const segs=[]; const mf=markFont(base.f);
+  for(const ch of text){
+    const mc=markColor(ch); const c=mc||base.c, f=mc?mf:base.f;
+    const l=segs[segs.length-1];
+    if(l && l.c===c && l.f===f) l.t+=ch; else segs.push({t:ch,c,f});
+  }
+  return segs;
+}
+function writeSegs(range,segs){
+  let r=range.insertText(segs[0].t,'Replace'); r.font.color=segs[0].c; r.font.name=segs[0].f;
+  for(let i=1;i<segs.length;i++){ r=r.insertText(segs[i].t,'After'); r.font.color=segs[i].c; r.font.name=segs[i].f; }
+  return r;
+}
+async function writeColored(ctx,range,text,base){
+  writeSegs(range,segsOf(text,base)).select('End'); await ctx.sync();
+}
+// Värvib olemasolevad märgid: kirjutab üle ainult IAST-sõnad, kus on svara-märk.
+// (Word ei leia otsinguga üksikut kombineeruvat märki, seega töötame sõnade kaupa.)
+async function colorMarks(ctx,ranges){
+  const keys=Object.keys(MARK_TYPE); const has=t=>!hasDeva(t) && [...t].some(ch=>keys.includes(ch));
+  const pl=ranges.map(rg=>{const p=rg.paragraphs; p.load('items/text'); return [rg,p];});
+  await ctx.sync();
+  const parts=[];
+  for(const [rg,p] of pl) for(const it of p.items){
+    if(!has(it.text)) continue;
+    const x=it.getRange('Content').intersectWithOrNullObject(rg); x.load('isNullObject'); parts.push(x);
+  }
+  await ctx.sync();
+  const wl=parts.filter(x=>!x.isNullObject).map(x=>{const w=x.getTextRanges([' ','\t'],true); w.load('items/text,items/font/color,items/font/name'); return w;});
+  await ctx.sync();
+  const words=[];
+  for(const w of wl) for(const it of w.items){ if(it.text && !/[\r\n\v\u000b]/.test(it.text) && has(it.text)) words.push(it); }
+  if(!words.length) return 0;
+  const fb=[];
+  for(const w of words){
+    w._c=okHex(w.font.color)?w.font.color:null; w._f=w.font.name||null;
+    if(w._c && w._f) continue;
+    const first=[...w.text].find(x=>!isMark(x) && x.trim());
+    if(first){ const r=w.search(escSearch(first),{matchCase:true}); r.load('items/font/color,items/font/name'); fb.push([w,r]); }
+  }
+  if(fb.length) await ctx.sync();
+  for(const [w,r] of fb) if(r.items.length){ const it=r.items[0]; if(!w._c && okHex(it.font.color)) w._c=it.font.color; if(!w._f) w._f=it.font.name; }
+  for(const w of words) writeSegs(w,segsOf(w.text,{c:w._c||'#000000',f:w._f||'Times New Roman'}));
+  await ctx.sync(); return words.length;
+}
+async function recolor(){
+  await Word.run(async ctx=>{
+    const sel=ctx.document.getSelection(); sel.load('isEmpty'); await ctx.sync();
+    const n=await colorMarks(ctx,[sel.isEmpty?ctx.document.body.getRange('Whole'):sel]);
+    msg(n?('Värvitud '+n+' sõna märgid'+(sel.isEmpty?' kogu dokumendis.':' valikus.')):'Svara-märke ei leitud.');
+  }).catch(fail);
+}
+
 // ---------- Wordi toimingud ----------
 // Teisendab valiku lõikude kaupa, et lõiguvorming jääks alles.
 async function convertSelection(fn){
@@ -128,13 +242,14 @@ async function convertSelection(fn){
     if(sel.isEmpty){msg('Vali Wordis kõigepealt tekst.');return;}
     const parts=paras.items.map(p=>p.getRange('Whole').intersectWithOrNullObject(sel));
     parts.forEach(r=>r.load('text,isNullObject')); await ctx.sync();
-    let n=0;
+    let n=0; const done=[];
     for(const r of parts){
       if(r.isNullObject || !r.text) continue;
       const nt=fn(r.text.replace(/\r$/,''));
-      if(nt!==r.text.replace(/\r$/,'')){ r.insertText(nt,'Replace'); n++; }
+      if(nt!==r.text.replace(/\r$/,'')){ done.push(r.insertText(nt,'Replace')); n++; }
     }
     await ctx.sync();
+    if(n && anyColor()) await colorMarks(ctx,done);
     msg(n?'Valmis.':'Midagi ei muutunud.');
   }).catch(fail);
 }
@@ -146,8 +261,11 @@ async function addDevaBelow(){
     const last=paras.items[paras.items.length-1];
     const lines=sel.text.split(/\r/).filter(x=>x.trim()).map(iastToDeva);
     let after=last;
-    for(const l of lines){ after=after.insertParagraph(l,'After'); }
-    await ctx.sync(); msg('Devanāgarī lisatud.');
+    const done=[];
+    for(const l of lines){ after=after.insertParagraph(l,'After'); done.push(after); }
+    await ctx.sync();
+    if(anyColor()) await colorMarks(ctx,done.map(p=>p.getRange('Whole')));
+    msg('Devanāgarī lisatud.');
   }).catch(fail);
 }
 function escSearch(s){return s.replace(/\^/g,'^^');}
@@ -157,6 +275,7 @@ async function applyAccent(mark){
     if(!sel.isEmpty){
       const r=accentAny(sel.text,mark);
       if(r.error){msg(r.error);return;}
+      if(anyColor() && !hasDeva(r.text) && !/[\r\n]/.test(r.text)){ await writeColored(ctx,sel,r.text,await baseOf(ctx,sel,sel.text)); return; }
       sel.insertText(r.text,'Replace').select('End'); await ctx.sync(); return;
     }
     // Kursor: võta sõna algusest kursorini
@@ -175,18 +294,23 @@ async function applyAccent(mark){
     if(!res.items.length){
       // varuvariant: lisa märk otse kursori kohale
       const dm=hasDeva(tail)?MARK_TO_DEVA[mark]:mark;
-      if(dm){ sel.insertText(dm,'Replace').select('End'); await ctx.sync(); msg('Märk lisatud kursori kohale.'); }
+      if(dm){ const ir=sel.insertText(dm,'Replace'); ir.select('End'); await ctx.sync(); msg('Märk lisatud kursori kohale.'); }
       else msg('Ei leidnud sõna üles.');
       return;
     }
     const target=res.items[res.items.length-1];
+    if(anyColor() && !hasDeva(tail)){ await writeColored(ctx,target,r.text,await baseOf(ctx,target,tail)); return; }
     target.insertText(r.text,'Replace').select('End');
     await ctx.sync();
   }).catch(fail);
 }
 async function insertLetter(l){
   await Word.run(async ctx=>{
-    ctx.document.getSelection().insertText(l,'Replace').select('End'); await ctx.sync();
+    const r=ctx.document.getSelection().insertText(l,'Replace');
+    const c=[...l].length===1?markColor(l):'';
+    if(c) r.font.color=c;
+    else if(anyColor()){ r.load('font/color'); await ctx.sync(); if(isSvaraColor(r.font.color)) r.font.color='#000000'; }
+    r.select('End'); await ctx.sync();
   }).catch(fail);
 }
 
@@ -198,6 +322,8 @@ document.getElementById('svara').addEventListener('click',ev=>{const b=ev.target
 document.getElementById('toIast').onclick=()=>convertSelection(toIast);
 document.getElementById('toDeva').onclick=()=>convertSelection(iastToDeva);
 document.getElementById('addDeva').onclick=addDevaBelow;
+document.getElementById('recolor').onclick=recolor;
+renderColors();
 
 buildKeyboard(document.getElementById('kb-deva'),'deva',insertLetter);
 buildKeyboard(document.getElementById('kb-vedic'),'vedic',insertLetter);
@@ -209,6 +335,7 @@ document.getElementById('tabs').addEventListener('click',ev=>{
 
 Office.onReady(info=>{
   if(info.host!==Office.HostType.Word) msg('See paneel töötab ainult Wordis.');
+  loadColors(); renderColors();
 });
 </script>
 </body>
